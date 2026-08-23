@@ -1,6 +1,6 @@
 name: Bug report
 description: Something in grabit is not working the way it should
-labels: [bug, triage]
+labels: [type/fix, status/triage]
 body:
   - type: markdown
     attributes:

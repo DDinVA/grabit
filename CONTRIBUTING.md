@@ -77,6 +77,29 @@ signing.
   contributors in the imperative, or describe what a prior version got
   wrong.
 
+## Labels
+
+Labels mirror commit-message scopes. Every issue and PR should carry:
+
+- One **`type/*`** label — `type/feat`, `type/fix`, `type/docs`,
+  `type/chore`, `type/refactor`, `type/test`. Same as the commit type.
+- One or more **`area/*`** labels — `area/reflow`, `area/vision`,
+  `area/readme`, `area/refactor-plan`, `area/contributing`,
+  `area/security`, `area/ci`, `area/install`, `area/rebrand`,
+  `area/governance`, `area/build`. Same as the commit area.
+- Optionally a **`status/*`** label for triage state
+  (`status/triage`, `status/needs-repro`, `status/blocked`,
+  `status/in-progress`, `status/needs-review`) and a **`priority/*`**
+  label (`priority/high`, `priority/medium`, `priority/low`).
+
+A PR titled `feat(reflow): markdown mode` should carry `type/feat` and
+`area/reflow`. If it also updates docs and CI, add `area/readme` and
+`area/ci` — labels are additive.
+
+Full label reference lives at
+[`.github/labels.md`](.github/labels.md) and is the source of truth
+if this section and the label list drift apart.
+
 - Sign your commits (`git commit -S`) if you can. Not required for
   merging, but strongly encouraged — it makes the audit trail meaningful.
 

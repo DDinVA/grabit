@@ -12,8 +12,8 @@ updates:
       timezone: "America/New_York"
     open-pull-requests-limit: 5
     labels:
-      - "dependencies"
-      - "github-actions"
+      - "type/chore"
+      - "area/ci"
     commit-message:
       prefix: "chore(ci)"
       include: "scope"
