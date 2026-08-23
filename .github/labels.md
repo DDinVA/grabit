@@ -1,8 +1,19 @@
 # Labels
 
-grabit's labels mirror the commit-message vocabulary from
-[CONTRIBUTING.md](../CONTRIBUTING.md#labels). A PR titled
-`feat(reflow): markdown mode` should carry `type/feat` and
+grabit uses a single vocabulary across three places: **branches**,
+**commits**, and **labels**. Change the vocabulary once and it flows
+through all three.
+
+```
+branch:  feat/reflow-markdown-mode
+commit:  feat(reflow): markdown mode
+labels:  type/feat  area/reflow
+```
+
+See [`CONTRIBUTING.md`](../CONTRIBUTING.md#branching-and-commits) for
+the branch and commit rules. This document is the label reference.
+
+A PR titled `feat(reflow): markdown mode` should carry `type/feat` and
 `area/reflow`. A PR titled `chore(ci): pin action versions` should
 carry `type/chore` and `area/ci`.
 

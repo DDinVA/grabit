@@ -43,10 +43,29 @@ signing.
 
 ## Branching and commits
 
-- Branch off `main`. Branch names: `feat/short-name`, `fix/short-name`,
-  `docs/short-name`, `security/short-name`.
+- Branch off `main`. Branch names use the same
+  `type/area-shortname` shape as commits, so a branch always tells
+  you what kind of change lives on it and where it lands:
+
+  ```
+  feat/reflow-markdown-mode
+  fix/reflow-tiny-capture-threshold
+  docs/readme-install-updates
+  docs/refactor-plan-revisions
+  chore/ci-pin-action-versions
+  chore/security-governance-scaffolding
+  ```
+
+  The `type` and `area` come from the same vocabulary as the commit
+  message (`feat`, `fix`, `docs`, `chore`, `refactor`, `test` for
+  type; `reflow`, `vision`, `readme`, `refactor-plan`, `contributing`,
+  `security`, `ci`, `install`, `rebrand`, `governance`, `build` for
+  area). The `shortname` is a couple of hyphen-separated words that
+  scope the specific change.
+
 - One logical change per PR. Refactors go in their own PR, ahead of the
   feature that needs them.
+
 - Commit messages and PR titles follow Conventional Commits **with an
   area label** and stay generic in their subject line:
 
@@ -62,9 +81,9 @@ signing.
   Rules for the subject line:
 
   1. **Always include an area** in parentheses after the type. It scopes
-     what changed. Areas that already exist: `reflow`, `readme`,
-     `refactor-plan`, `security`, `ci`, `install`, `rebrand`,
-     `governance`, `vision`. Add new ones as the project grows.
+     what changed. Same area vocabulary as branches and labels — see
+     [`.github/labels.md`](.github/labels.md) for the current list.
+     Add new ones there first, then use them in commits.
   2. **Keep the subject generic.** Describe the surface, not the
      editorial intent or what was removed. Commit messages are a
      permanent public record — never encode information there that
@@ -77,9 +96,14 @@ signing.
   contributors in the imperative, or describe what a prior version got
   wrong.
 
+- Sign your commits (`git commit -S`) if you can. Not required for
+  merging, but strongly encouraged — it makes the audit trail
+  meaningful.
+
 ## Labels
 
-Labels mirror commit-message scopes. Every issue and PR should carry:
+Labels use the same `type/*` and `area/*` vocabulary as branches and
+commits. Every issue and PR should carry:
 
 - One **`type/*`** label — `type/feat`, `type/fix`, `type/docs`,
   `type/chore`, `type/refactor`, `type/test`. Same as the commit type.
@@ -92,16 +116,14 @@ Labels mirror commit-message scopes. Every issue and PR should carry:
   `status/in-progress`, `status/needs-review`) and a **`priority/*`**
   label (`priority/high`, `priority/medium`, `priority/low`).
 
-A PR titled `feat(reflow): markdown mode` should carry `type/feat` and
-`area/reflow`. If it also updates docs and CI, add `area/readme` and
-`area/ci` — labels are additive.
+A branch `feat/reflow-markdown-mode` becomes commits
+`feat(reflow): markdown mode` and PRs titled the same way, labeled
+`type/feat` and `area/reflow`. If the PR also updates docs and CI,
+add `area/readme` and `area/ci` — labels are additive.
 
 Full label reference lives at
 [`.github/labels.md`](.github/labels.md) and is the source of truth
 if this section and the label list drift apart.
-
-- Sign your commits (`git commit -S`) if you can. Not required for
-  merging, but strongly encouraged — it makes the audit trail meaningful.
 
 ## What good PRs look like
 
