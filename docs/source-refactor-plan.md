@@ -230,48 +230,29 @@ Each phase is sized to be independently mergeable to `main`.
 - RTL support in reflow.
 - Multi-column ML heuristic for real academic PDFs.
 
-## Open questions to resolve before Phase 1
+## Open questions
 
-1. **Pasteboard access from Rust.** Simplest path: shell out to `pbcopy`.
-   Correct path: `objc2-app-kit` crate calling `NSPasteboard.general`.
-   Which one first?
-   - **Proposed default:** `pbcopy` shell-out for Phase 2; migrate to
-     `objc2` in Phase 4 once the CLI is stable. `pbcopy` has been
-     stable since Mac OS X 10.2 (2002) and is unlikely to change.
+The five open questions from the original draft of this plan have been
+lifted into formal Architecture Decision Records. Each ADR has a
+tracking issue for its validation criteria:
 
-2. **`grabit-vision` API shape.** Two options:
-   - **Request-response over stdio** (simple, one-shot): `stdin: {rect,
-     lang, symbologies}`, `stdout: {observations, records}`.
-   - **Line-delimited streaming** (future watch mode): daemon-style,
-     one request per line, one response per line, indefinite lifetime.
-   - **Proposed default:** start with request-response. Streaming is a
-     Phase 5 concern.
+| ADR | Question | Tracking |
+|---|---|---|
+| [0003](adr/0003-pasteboard-access-strategy.md) | How does the Rust CLI talk to `NSPasteboard`? | [#4](https://github.com/DDinVA/grabit/issues/4) |
+| [0004](adr/0004-vision-shim-api-shape.md) | Request-response or streaming for `grabit-vision`? | [#5](https://github.com/DDinVA/grabit/issues/5) |
+| [0005](adr/0005-per-arch-binaries.md) | Per-arch binaries or universal2? | [#6](https://github.com/DDinVA/grabit/issues/6) |
+| [0006](adr/0006-notarization-timing.md) | Notarize now or defer? | [#7](https://github.com/DDinVA/grabit/issues/7) |
+| [0007](adr/0007-cocoapods-to-spm.md) | Migrate CocoaPods to SPM? | [#8](https://github.com/DDinVA/grabit/issues/8) |
 
-3. **Universal2 or per-arch binaries?**
-   - Rust supports universal2 via `lipo` in a post-build step. Doubles
-     binary size.
-   - Current release ships per-arch tarballs (already have `arm64` +
-     coming `x86_64`).
-   - **Proposed default:** keep per-arch. Users installing via brew get
-     the right one automatically. Universal2 only helps people
-     distributing via `curl | tar`.
+The two architectural decisions themselves ([ADR 0001](adr/0001-two-binary-split.md)
+and [ADR 0002](adr/0002-rust-for-non-vision-half.md)) also have
+tracking issues ([#2](https://github.com/DDinVA/grabit/issues/2) and
+[#3](https://github.com/DDinVA/grabit/issues/3)) for their acceptance
+and validation.
 
-4. **Do we notarize?**
-   - Requires an Apple Developer account ($99/year) + signing identity.
-   - `brew install` from source does not need notarization.
-   - Binary tarballs from Releases downloaded via browser DO get
-     Gatekeeper warnings without notarization.
-   - **Proposed default:** not for v2.0.0. Revisit once traction
-     justifies the $99. Document the `xattr -c grabit` workaround in
-     README until then.
-
-5. **Swift Package Manager migration for the Vision shim?**
-   - CocoaPods is dying. SPM is the modern Swift package manager.
-   - The shim will be small enough to go SPM-native and drop CocoaPods
-     entirely.
-   - **Proposed default:** yes. Do it in Phase 1 as part of the shim
-     extraction. Retire the `Pods/` directory. Cleaner tree, native
-     Dependabot coverage for the Swift deps, no `pod install` in CI.
+Challenge an ADR by opening a PR that supersedes it. Adopt one by
+approving its tracking issue and updating the ADR status from
+`proposed` to `accepted`.
 
 ## What this document is NOT
 
