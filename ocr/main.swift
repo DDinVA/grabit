@@ -1,8 +1,10 @@
 //
 //  main.swift
-//  OCR
+//  grabit — geometry-aware screen OCR for macOS
 //
-//  Created by Marcus Schappi on 17/5/21, 11:36 am
+//  Originally created as macOCR by Marcus Schappi on 17/5/21.
+//  Rebranded and extended (paragraph reflow, geometry-aware layout) as
+//  grabit by DDinVA <ddinva@proton.me> in 2026. MIT.
 //
 
 import Foundation
@@ -24,12 +26,12 @@ if #available(OSX 11, *) {
 
 /// Bump this in step with the git tag that ships the release. The release job in
 /// .github/workflows/build.yml refuses to publish a tag that disagrees with it.
-let ocrVersion = "1.3.0"
-let ocrRepositoryURL = "https://github.com/schappim/macOCR"
-let ocrReleasesURL = "https://github.com/schappim/macOCR/releases/latest"
-let ocrAllReleasesURL = "https://github.com/schappim/macOCR/releases"
-let ocrLatestReleaseAPI = "https://api.github.com/repos/schappim/macOCR/releases/latest"
-let ocrBrewFormula = "schappim/ocr/ocr"
+let ocrVersion = "1.0.0"
+let ocrRepositoryURL = "https://github.com/DDinVA/grabit"
+let ocrReleasesURL = "https://github.com/DDinVA/grabit/releases/latest"
+let ocrAllReleasesURL = "https://github.com/DDinVA/grabit/releases"
+let ocrLatestReleaseAPI = "https://api.github.com/repos/DDinVA/grabit/releases/latest"
+let ocrBrewFormula = "DDinVA/grabit/grabit"
 
 /// The slice this binary was compiled as.
 #if arch(arm64)
@@ -65,9 +67,9 @@ func printToStandardError(_ message: String) {
 
 func printVersion() {
     if ocrIsTranslated {
-        print("macOCR \(ocrVersion) (\(ocrBinaryArch) running under Rosetta; an arm64 build is available)")
+        print("grabit \(ocrVersion) (\(ocrBinaryArch) running under Rosetta; an arm64 build is available)")
     } else {
-        print("macOCR \(ocrVersion) (\(ocrBinaryArch))")
+        print("grabit \(ocrVersion) (\(ocrBinaryArch))")
     }
     print(ocrRepositoryURL)
 }
@@ -90,36 +92,36 @@ func printHelp() {
         "  -R, --rect <x,y,w,h>      Capture a specific region, skipping the interactive selection",
         "  -i, --input <file>        Read an existing image file instead of capturing the screen",
         "  -s, --save-image <path>   Save the captured screenshot to <path>",
-        "  -v, --version             Print the macOCR version",
+        "  -v, --version             Print the grabit version",
         "      --update              Check for a newer version and update via Homebrew",
         "  -h, --help                Show this help",
     ]
 
-    var exampleLines = ["  ocr                       Select a region and read the text and codes in it"]
+    var exampleLines = ["  grabit                    Select a region and read the text and codes in it"]
     if bigSur {
-        exampleLines.append("  ocr -l ja-JP              OCR using Japanese")
+        exampleLines.append("  grabit -l ja-JP              OCR using Japanese")
     }
     exampleLines += [
-        "  ocr --list-languages      Show every language code this copy supports",
-        "  ocr -b                    Read only the QR codes and barcodes in the region",
-        "  ocr -b --symbologies QR   Read QR codes only, ignoring other barcodes",
-        "  ocr --no-barcodes         Read only the text, as macOCR did before 1.3.0",
-        "  ocr --json                Get the text, symbology and position of everything read",
-        "  ocr --reflow paragraph    OCR a paragraph on screen back into a paragraph (not one word per line)",
-        "  ocr --rect 100,200,500,300",
-        "  ocr -i ~/Desktop/screenshot.png",
-        "  ocr -s ~/Desktop/capture.png",
+        "  grabit --list-languages      Show every language code this copy supports",
+        "  grabit -b                 Read only the QR codes and barcodes in the region",
+        "  grabit -b --symbologies QR   Read QR codes only, ignoring other barcodes",
+        "  grabit --no-barcodes         Read only the text, as macOCR (grabit's upstream) did before 1.3.0",
+        "  grabit --json                Get the text, symbology and position of everything read",
+        "  grabit --reflow paragraph    OCR a paragraph on screen back into a paragraph (not one word per line)",
+        "  grabit --rect 100,200,500,300",
+        "  grabit -i ~/Desktop/screenshot.png",
+        "  grabit -s ~/Desktop/capture.png",
     ]
 
     var text = """
-    macOCR \(ocrVersion) - turn any text, QR code or barcode on your screen into
-    text on your clipboard.
+    grabit \(ocrVersion) - turn any text, QR code or barcode on your screen into text
+    on your clipboard, with paragraph-aware reflow.
 
-    By default macOCR reads both: any text in the region, plus the payload of any
+    By default grabit reads both: any text in the region, plus the payload of any
     QR code or barcode it finds, in the order they appear on screen.
 
     USAGE:
-      ocr [options]
+      grabit [options]
 
     OPTIONS:
     \(optionLines.joined(separator: "\n"))
@@ -128,7 +130,7 @@ func printHelp() {
     \(exampleLines.joined(separator: "\n"))
 
     EXIT STATUS:
-      With --barcodes, macOCR exits 1 when it finds no codes, so a script can tell
+      With --barcodes, grabit exits 1 when it finds no codes, so a script can tell
       "nothing there" from a successful read. The other modes succeed on an empty
       region. Any error exits 1 and explains itself on stderr.
 
@@ -148,7 +150,7 @@ func printHelp() {
     UPDATING:
       Homebrew:   brew upgrade \(ocrBrewFormula)
       Manual:     \(ocrReleasesURL)
-      Or run:     ocr --update
+      Or run:     grabit --update
 
     HOMEPAGE:
       \(ocrRepositoryURL)
@@ -196,7 +198,7 @@ func latestReleaseVersion() -> String? {
 
     var request = URLRequest(url: url)
     request.timeoutInterval = 6
-    request.setValue("macOCR/\(ocrVersion)", forHTTPHeaderField: "User-Agent")
+    request.setValue("grabit/\(ocrVersion)", forHTTPHeaderField: "User-Agent")
     request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
 
     var tagName: String? = nil
@@ -252,9 +254,9 @@ func printManualUpdateInstructions() {
 
     Replace this copy with the latest \(ocrDownloadArch) build:
 
-      curl -L -o macOCR-\(ocrDownloadArch).tar.gz \\
-        \(ocrReleasesURL)/download/macOCR-\(ocrDownloadArch).tar.gz
-      tar xzf macOCR-\(ocrDownloadArch).tar.gz
+      curl -L -o grabit-\(ocrDownloadArch).tar.gz \\
+        \(ocrReleasesURL)/download/grabit-\(ocrDownloadArch).tar.gz
+      tar xzf grabit-\(ocrDownloadArch).tar.gz
       sudo mv ocr \(installPath)
 
     Or switch to Homebrew, which can do this for you from then on:
@@ -317,7 +319,7 @@ func runHomebrewUpgrade(brew: String) -> Int32 {
 
 func performUpdate() -> Never {
     let installedWithHomebrew = isHomebrewInstall()
-    print("macOCR \(ocrVersion) (\(ocrBinaryArch)), installed at \(resolvedExecutablePath())")
+    print("grabit \(ocrVersion) (\(ocrBinaryArch)), installed at \(resolvedExecutablePath())")
     print(installedWithHomebrew ? "Installed via Homebrew." : "Installed manually.")
     if ocrIsTranslated {
         print("Running under Rosetta on Apple Silicon; a native arm64 build is available.")
@@ -536,7 +538,7 @@ func copyToClipboard(_ string: String) {
     pasteboard.setString(string, forType: .string)
 }
 
-/// The whole point of macOCR is that what it read ends up on the clipboard, so the
+/// The whole point of grabit is that what it read ends up on the clipboard, so the
 /// clipboard gets the plain payloads even when stdout is JSON for a script to parse.
 func emit(payloads: [String], records: [[String: Any]], asJSON: Bool) {
     let joined = payloads.joined(separator: joiner)
@@ -550,7 +552,7 @@ func emit(payloads: [String], records: [[String: Any]], asJSON: Bool) {
 
 // MARK: - Recognition
 
-/// What macOCR is looking for. Vision can answer both questions about one image in
+/// What grabit is looking for. Vision can answer both questions about one image in
 /// a single pass, so reading codes as well as text costs a request rather than a
 /// second run, which is why `both` is the default.
 enum ScanMode {
@@ -561,8 +563,8 @@ enum ScanMode {
 
 /// How stdout and the clipboard should be shaped from what Vision returned.
 enum ReflowMode: String {
-    /// One observation per output line, joined with "\n". macOCR's original
-    /// behaviour — kept as the default so existing scripts that split on
+    /// One observation per output line, joined with "\n". grabit's default behaviour (macOCR's original
+    /// behaviour) — kept as the default so existing scripts that split on
     /// newlines keep working.
     case lines
     /// Reflow observations into visual paragraphs using bounding-box geometry:
@@ -697,7 +699,7 @@ func scanResults(in image: CGImage, mode: ScanMode, symbologies: [VNBarcodeSymbo
 // MARK: - Text reflow
 //
 // Vision returns one observation per detected line segment. Joining those with
-// "\n" (macOCR's original --reflow lines behaviour) turns a paragraph on screen
+// "\n" (grabit's default behaviour (macOCR's original --reflow lines behaviour) turns a paragraph on screen
 // into a vertical stack of lines on the clipboard. --reflow paragraph groups
 // same-row fragments and treats consecutive close-together rows as continuation
 // lines of one paragraph, so a paragraph on screen becomes a paragraph on the
@@ -867,7 +869,7 @@ do {
 
     let arguments = Array(CommandLine.arguments.dropFirst())
 
-    let parser = ArgumentParser(usage: "<options>", overview: "macOCR is a command line app that enables you to turn any text, QR code or barcode on your screen into text on your clipboard. It reads both text and codes unless you narrow it down with --barcodes or --no-barcodes")
+    let parser = ArgumentParser(usage: "<options>", overview: "grabit reads text and barcodes off your screen and puts the result on your clipboard. It understands paragraphs, columns, and mixed text/barcode captures — pass --reflow paragraph to get prose back as prose instead of one line per Vision observation.")
 
     let listLanguagesOption = parser.add(option: "--list-languages", kind: Bool.self, usage: "List supported OCR languages")
     let barcodesOption = parser.add(option: "--barcodes", shortName: "-b", kind: Bool.self, usage: "Read only QR codes and barcodes, ignoring any text")
@@ -987,7 +989,7 @@ do {
 
     // Determine the image to process
     let imageURL: URL
-    // Set only when macOCR took the screenshot itself, and so is the one that has
+    // Set only when grabit took the screenshot itself, and so is the one that has
     // to tidy it up afterwards.
     var temporaryCapture: String? = nil
 
@@ -1006,7 +1008,7 @@ do {
         // is cleared first, so cancelling the capture leaves nothing behind to be
         // mistaken for a screenshot the user just took.
         let tempPath = (NSTemporaryDirectory() as NSString)
-            .appendingPathComponent("macOCR-capture-\(ProcessInfo.processInfo.processIdentifier).png")
+            .appendingPathComponent("grabit-capture-\(ProcessInfo.processInfo.processIdentifier).png")
         try? FileManager.default.removeItem(atPath: tempPath)
 
         if let rect = rectValues {
@@ -1037,7 +1039,7 @@ do {
     let decoded = loadImage(at: imageURL)
 
     // The screenshot has been decoded into memory, so the file has done its job.
-    // Leaving it on disk would mean every run of macOCR abandoned a copy of
+    // Leaving it on disk would mean every run of grabit abandoned a copy of
     // whatever was on screen at the time.
     if let path = temporaryCapture {
         try? FileManager.default.removeItem(atPath: path)
@@ -1055,7 +1057,7 @@ do {
 
 } catch {
     printToStandardError("Error: \(error)")
-    printToStandardError("Run `ocr --help` for usage.")
+    printToStandardError("Run `grabit --help` for usage.")
     exit(EXIT_FAILURE)
 }
 
