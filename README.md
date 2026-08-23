@@ -14,11 +14,16 @@ That is the whole pitch.
 
 ## Install
 
+Download the arm64 binary from [Releases](https://github.com/DDinVA/grabit/releases/latest):
+
 ```bash
-brew install DDinVA/grabit/grabit
+curl -L -o grabit-arm64.tar.gz \
+  https://github.com/DDinVA/grabit/releases/latest/download/grabit-arm64.tar.gz
+tar xzf grabit-arm64.tar.gz
+sudo mv grabit /usr/local/bin/
 ```
 
-Or grab a signed release from [Releases](https://github.com/DDinVA/grabit/releases/latest) and drop the binary in `/usr/local/bin/`.
+A Homebrew tap is on the roadmap once there's a build cadence worth automating.
 
 First run will prompt for **Screen Recording** permission. Approve it once in System Settings → Privacy & Security → Screen Recording.
 
