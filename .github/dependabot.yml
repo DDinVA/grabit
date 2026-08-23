@@ -1,0 +1,29 @@
+version: 2
+updates:
+  # Track our GitHub Actions dependencies so we get PRs when SHA-pinned
+  # actions ship security patches. Grouped so we do not get separate PRs
+  # for every action every quarter.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "07:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "chore(ci)"
+      include: "scope"
+    groups:
+      actions:
+        patterns:
+          - "*"
+
+# NOTE: Dependabot does not natively support CocoaPods. Our Podfile.lock deps
+# (ArgumentParserKit, ScreenCapture) are covered by the dependency-review
+# workflow (blocks PRs that introduce vulnerable versions) and by CodeQL
+# (static analysis of the vendored sources). Migrate to Swift Package Manager
+# in a future release to get automated Dependabot coverage.

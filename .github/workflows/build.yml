@@ -2,20 +2,41 @@ name: Build
 
 on:
   push:
-    branches: [master]
+    branches: [main]
     tags: ['v*']
   pull_request:
-    branches: [master]
+    branches: [main]
+
+# Least privilege by default. Individual jobs escalate only what they need.
+permissions:
+  contents: read
 
 jobs:
   build:
+    name: Build (${{ matrix.arch }})
     runs-on: macos-latest
+    permissions:
+      contents: read
+      # The release job needs id-token for build provenance attestation;
+      # granting it here lets us attest inside build/ per-artifact.
+      id-token: write
+      attestations: write
     strategy:
       matrix:
         arch: [x86_64, arm64]
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Harden runner
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.13.1
+        with:
+          # Audit-only so we discover any real outbound calls the toolchain
+          # needs before we switch to a hard allow-list.
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.3.0
+        with:
+          persist-credentials: false
 
       - name: Check the tag matches the version in the source
         if: startsWith(github.ref, 'refs/tags/v')
@@ -44,37 +65,65 @@ jobs:
             CODE_SIGNING_ALLOWED=NO
 
       - name: Prepare artifact
-        # Staged in dist/ because the repo already has an ocr/ source directory:
+        # Staged in dist/ because the repo has an ocr/ source directory:
         # copying the binary to ./ocr would land it inside that directory and
         # ship the whole thing, source and all, instead of a bare executable.
+        # Binary is renamed to `grabit` here — that is the on-disk name users
+        # get after untarring the release.
         run: |
           mkdir -p dist
-          cp build/Build/Products/Release/ocr dist/ocr
-          chmod +x dist/ocr
-          file dist/ocr
-          tar czf macOCR-${{ matrix.arch }}.tar.gz -C dist ocr
-          tar tzf macOCR-${{ matrix.arch }}.tar.gz
+          cp build/Build/Products/Release/ocr dist/grabit
+          chmod +x dist/grabit
+          file dist/grabit
+          tar czf grabit-${{ matrix.arch }}.tar.gz -C dist grabit
+          tar tzf grabit-${{ matrix.arch }}.tar.gz
+          shasum -a 256 grabit-${{ matrix.arch }}.tar.gz
+
+      - name: Attest build provenance
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        with:
+          subject-path: grabit-${{ matrix.arch }}.tar.gz
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: macOCR-${{ matrix.arch }}
-          path: macOCR-${{ matrix.arch }}.tar.gz
+          name: grabit-${{ matrix.arch }}
+          path: grabit-${{ matrix.arch }}.tar.gz
+          if-no-files-found: error
 
   release:
+    name: Publish release
     needs: build
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.13.1
+        with:
+          egress-policy: audit
+
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           merge-multiple: true
 
+      - name: Generate SHA256SUMS
+        run: |
+          shasum -a 256 grabit-*.tar.gz | tee SHA256SUMS
+          echo ""
+          echo "Users verify with:"
+          echo "  shasum -a 256 -c SHA256SUMS"
+
       - name: Create Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.4.1
         with:
           files: |
-            macOCR-x86_64.tar.gz
-            macOCR-arm64.tar.gz
+            grabit-x86_64.tar.gz
+            grabit-arm64.tar.gz
+            SHA256SUMS
+          generate_release_notes: true
+          fail_on_unmatched_files: true

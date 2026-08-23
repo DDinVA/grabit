@@ -1,0 +1,67 @@
+name: Bug report
+description: Something in grabit is not working the way it should
+labels: [bug, triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Please do not open a bug report for a security
+        vulnerability — use the [security advisory](https://github.com/DDinVA/grabit/security/advisories/new)
+        channel instead so we can fix it before it goes public.
+  - type: input
+    id: version
+    attributes:
+      label: grabit version
+      description: Output of `grabit --version`
+      placeholder: "grabit 1.0.0 (arm64)"
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version and CPU
+      description: e.g. macOS 14.5 (Sonoma), Apple Silicon (M2)
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did grabit do that surprised you?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: What should have happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: |
+        Exact command line, and — if possible — a screenshot fixture we can
+        run through grabit ourselves. If the input image is private, please
+        recreate the problem with a public/synthetic image and attach that
+        instead.
+      placeholder: |
+        1. Take a screenshot of https://example.com/some-public-page.png
+        2. Run: grabit --reflow paragraph -i screenshot.png
+        3. Observe the second paragraph is merged into the first
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Actual output
+      description: Paste grabit's stdout (or the clipboard result) and any stderr.
+      render: shell
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy
+      options:
+        - label: The screenshots and text I have attached do not contain sensitive information (passwords, private data, PII, medical records, etc.)
+          required: true

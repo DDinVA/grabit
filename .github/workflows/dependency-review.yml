@@ -1,0 +1,37 @@
+name: Dependency Review
+
+# Blocks PRs that introduce dependencies with known vulnerabilities or
+# incompatible licenses. Uses GitHub's dependency graph — CocoaPods entries
+# in Podfile.lock are included automatically.
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-review:
+    name: Dependency review
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.13.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.3.0
+        with:
+          persist-credentials: false
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4.9.0
+        with:
+          # Fail the PR on high-severity or worse vulnerabilities.
+          fail-on-severity: high
+          # Grabit is MIT. We only accept permissive licenses in our deps to
+          # keep the licensing story simple.
+          allow-licenses: MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, 0BSD, Unlicense, CC0-1.0
+          comment-summary-in-pr: on-failure

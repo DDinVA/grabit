@@ -1,0 +1,40 @@
+name: Feature request
+description: Suggest a change or new capability
+labels: [enhancement, triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Small changes get merged fast. Big changes stall.
+        Before you write a lot of code, please describe the change here so we
+        can agree on the shape.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve
+      description: What are you trying to do that grabit does not currently support well?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: What should grabit do differently? Include the exact CLI shape if you can.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: What did you try, or what other approaches did you rule out?
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      options:
+        - label: This does not require a network call from grabit
+          required: false
+        - label: This does not add a new runtime dependency (Vision + Cocoa + AppKit only)
+          required: false
+        - label: This can be opt-in behind a flag (default behaviour unchanged)
+          required: false
