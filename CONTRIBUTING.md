@@ -196,6 +196,32 @@ functions small enough to fit on one screen. `ocr/main.swift` is
 deliberately one file — do not split it up unless you have a very good
 reason. If in doubt, match what is already there.
 
+## Governance
+
+grabit is a spec-driven project. Direction is set by
+[Architecture Decision Records](docs/adr/README.md); surface contracts
+are captured in [specs](docs/specs/README.md); process rules live in
+this document, [SECURITY.md](SECURITY.md), and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+
+Practical rules for contributors:
+
+1. **Reference ADRs in PRs that touch architectural surface.** If your
+   change contradicts an accepted ADR, either supersede that ADR in
+   the same PR or explain why the ADR still holds. A PR that quietly
+   violates an ADR should be blocked on review.
+2. **Propose new decisions as ADRs.** Copy [`docs/adr/0000-template.md`](docs/adr/0000-template.md)
+   to the next numbered slug, open a PR titled `docs(adr): NNNN <slug>`.
+   The auto-labeler applies `type/docs` and `area/adr`. Discussion
+   happens in the PR review, and if accepted the ADR moves from
+   `proposed` to `accepted` in that PR.
+3. **Freeze surface in specs.** If your change introduces a stable
+   contract (a new CLI flag with backwards-compat guarantees, a JSON
+   field consumers will parse, an algorithm invariant tests will
+   enforce), add or update the matching spec in `docs/specs/`. New
+   specs land under `area/spec`.
+
+See [`docs/GOVERNANCE.md`](docs/GOVERNANCE.md) for the one-page tour.
+
 ## Code of Conduct
 
 By participating you agree to abide by our

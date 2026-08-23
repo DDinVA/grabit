@@ -137,6 +137,15 @@ grabit is a fork of [**macOCR**](https://github.com/schappim/macOCR) by [Marcus 
 
 Original macOCR license (MIT) preserved in [`LICENSES/macOCR-MIT.txt`](LICENSES/macOCR-MIT.txt). ArgumentParserKit (Apple, Apache 2.0) and ScreenCapture (Jack P., MIT) licenses in the same directory.
 
+## Governance
+
+grabit is spec-driven. Direction is set in
+[Architecture Decision Records](docs/adr/README.md), surface contracts
+are captured in [specs](docs/specs/README.md), and process rules live
+in [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and
+[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). See
+[`docs/GOVERNANCE.md`](docs/GOVERNANCE.md) for the one-page tour.
+
 ## License
 
 MIT. See [`LICENSE`](LICENSE).
