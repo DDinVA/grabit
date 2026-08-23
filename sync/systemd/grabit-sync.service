@@ -1,0 +1,43 @@
+[Unit]
+Description=grabit-sync — GitHub Issues <-> YouTrack GRA bidirectional bridge
+Documentation=https://github.com/DDinVA/grabit/tree/main/sync
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=grabit-sync
+Group=grabit-sync
+WorkingDirectory=/opt/grabit-sync
+EnvironmentFile=/etc/grabit-sync/env
+ExecStart=/usr/bin/node /opt/grabit-sync/src/server.mjs
+Restart=on-failure
+RestartSec=5s
+
+# Sandbox: this service touches its own state dir and phones out over HTTPS.
+# Nothing else on the box.
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ReadWritePaths=/var/lib/grabit-sync
+CapabilityBoundingSet=
+AmbientCapabilities=
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+
+# Only outbound network needed
+IPAddressAllow=any
+
+[Install]
+WantedBy=multi-user.target

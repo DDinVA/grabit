@@ -1,0 +1,27 @@
+{
+  "name": "grabit-sync",
+  "version": "0.1.0-alpha.0",
+  "private": true,
+  "description": "Bidirectional sync between DDinVA/grabit GitHub Issues and YouTrack GRA project. See ADR 0008.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "provision": "node scripts/provision-youtrack.mjs",
+    "backfill":  "node scripts/backfill.mjs",
+    "start":     "node src/server.mjs",
+    "lint":      "eslint src/ scripts/",
+    "test":      "node --test test/"
+  },
+  "dependencies": {
+    "@octokit/rest": "^21.0.0",
+    "@octokit/webhooks": "^13.3.0",
+    "better-sqlite3": "^11.0.0",
+    "pino": "^9.0.0"
+  },
+  "devDependencies": {
+    "eslint": "^9.0.0"
+  },
+  "license": "MIT"
+}
