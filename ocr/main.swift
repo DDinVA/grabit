@@ -86,6 +86,7 @@ func printHelp() {
         "      --symbologies <list>  Only look for these symbologies, e.g. QR,EAN13",
         "      --list-symbologies    List every barcode symbology this copy can read",
         "      --json                Print results as JSON instead of plain text",
+        "      --reflow <mode>       Text layout: 'lines' (default) or 'paragraph'",
         "  -R, --rect <x,y,w,h>      Capture a specific region, skipping the interactive selection",
         "  -i, --input <file>        Read an existing image file instead of capturing the screen",
         "  -s, --save-image <path>   Save the captured screenshot to <path>",
@@ -104,6 +105,7 @@ func printHelp() {
         "  ocr -b --symbologies QR   Read QR codes only, ignoring other barcodes",
         "  ocr --no-barcodes         Read only the text, as macOCR did before 1.3.0",
         "  ocr --json                Get the text, symbology and position of everything read",
+        "  ocr --reflow paragraph    OCR a paragraph on screen back into a paragraph (not one word per line)",
         "  ocr --rect 100,200,500,300",
         "  ocr -i ~/Desktop/screenshot.png",
         "  ocr -s ~/Desktop/capture.png",
@@ -557,6 +559,19 @@ enum ScanMode {
     case both
 }
 
+/// How stdout and the clipboard should be shaped from what Vision returned.
+enum ReflowMode: String {
+    /// One observation per output line, joined with "\n". macOCR's original
+    /// behaviour — kept as the default so existing scripts that split on
+    /// newlines keep working.
+    case lines
+    /// Reflow observations into visual paragraphs using bounding-box geometry:
+    /// fragments on the same visual row join with a space, continuation lines
+    /// of a paragraph join with a space, and a paragraph break (large vertical
+    /// gap) becomes a blank line.
+    case paragraph
+}
+
 /// One thing macOCR read: a line of text, or the payload of a barcode.
 struct ScanResult {
     /// nil for a barcode carrying bytes that are not text, which have nothing to
@@ -570,6 +585,15 @@ struct ScanResult {
     let order: Double
     let y: Double
     let x: Double
+    /// Width and height of the observation's bounding box in Vision's normalised
+    /// coordinates. Reflow uses these to group same-row fragments and to detect
+    /// paragraph breaks; the JSON path ignores them (the box is already in the
+    /// record).
+    let width: Double
+    let height: Double
+    /// True for text observations, false for barcodes. Reflow never space-joins
+    /// a barcode with adjacent text — each code always sits on its own line.
+    let isText: Bool
 }
 
 func scanResults(in image: CGImage, mode: ScanMode, symbologies: [VNBarcodeSymbology]?, asJSON: Bool) -> [ScanResult] {
@@ -606,7 +630,10 @@ func scanResults(in image: CGImage, mode: ScanMode, symbologies: [VNBarcodeSymbo
             ],
             order: Double(index),
             y: Double(observation.boundingBox.midY),
-            x: Double(observation.boundingBox.minX)))
+            x: Double(observation.boundingBox.minX),
+            width: Double(observation.boundingBox.width),
+            height: Double(observation.boundingBox.height),
+            isText: true))
     }
 
     for observation in barcodeRequest.results ?? [] {
@@ -649,7 +676,10 @@ func scanResults(in image: CGImage, mode: ScanMode, symbologies: [VNBarcodeSymbo
             record: record,
             order: Double(linesAbove) - 0.5,
             y: Double(box.midY),
-            x: Double(box.minX)))
+            x: Double(box.minX),
+            width: Double(box.width),
+            height: Double(box.height),
+            isText: false))
     }
 
     return results.sorted { first, second in
@@ -664,8 +694,154 @@ func scanResults(in image: CGImage, mode: ScanMode, symbologies: [VNBarcodeSymbo
     }
 }
 
-func report(_ results: [ScanResult], mode: ScanMode, asJSON: Bool) -> Never {
-    let payloads = results.compactMap { $0.payload }
+// MARK: - Text reflow
+//
+// Vision returns one observation per detected line segment. Joining those with
+// "\n" (macOCR's original --reflow lines behaviour) turns a paragraph on screen
+// into a vertical stack of lines on the clipboard. --reflow paragraph groups
+// same-row fragments and treats consecutive close-together rows as continuation
+// lines of one paragraph, so a paragraph on screen becomes a paragraph on the
+// clipboard.
+
+/// Reflows text observations into readable paragraphs using bounding-box geometry.
+///
+/// - Fragments on the same visual row (midY within half a line-height) join with a space.
+/// - Rows separated by less than 1.6 line-heights are continuation lines of the same
+///   paragraph and also join with a space.
+/// - Rows separated by more than that get a blank line between them (paragraph break).
+/// - Barcodes are never merged with text; each barcode gets its own line.
+/// - A large horizontal gap between two same-row fragments (> 3 line-heights of
+///   whitespace) is treated as a column break, not a within-line gap, so multi-column
+///   layouts don't get their columns space-joined into gibberish.
+///
+/// Returns one string per output line. emit() joins these with the "\n" joiner,
+/// so a "" element produces "\n\n" — a blank line, i.e. a paragraph break.
+func reflowedPayloads(from results: [ScanResult]) -> [String] {
+    // Only text participates in reflow; barcodes are emitted verbatim, each on
+    // its own line, interleaved by the caller's order.
+    struct Item {
+        let payload: String
+        let isText: Bool
+        let order: Double
+        let midY: Double
+        let minX: Double
+        let maxX: Double
+        let height: Double
+    }
+
+    let items: [Item] = results.compactMap { r in
+        guard let p = r.payload else { return nil }
+        return Item(
+            payload: p, isText: r.isText, order: r.order,
+            midY: r.y, minX: r.x, maxX: r.x + r.width, height: r.height)
+    }
+    guard items.count > 1 else { return items.map { $0.payload } }
+
+    // Keep the caller's reading order (top-to-bottom, left-to-right, with
+    // barcodes slotted in) but let each row-grouping decision use geometry.
+    let sorted = items.sorted { $0.order < $1.order }
+
+    // Row grouping: an item joins the previous row when both are text, midY
+    // matches within half a line-height, and the horizontal gap is small
+    // enough that this really is the same visual line (not a neighbouring
+    // column at the same vertical position).
+    var rows: [[Item]] = []
+    for item in sorted {
+        var mergedIntoPrevious = false
+        if item.isText, let lastRow = rows.last, let last = lastRow.last, last.isText {
+            let lineHeight = max(0.0001, min(item.height, last.height))
+            let sameRow = abs(item.midY - last.midY) <= lineHeight * 0.5
+            // maxX of the row's rightmost item vs this item's minX. Columns
+            // typically leave a gutter several line-heights wide.
+            let rightmostMaxX = lastRow.map { $0.maxX }.max() ?? last.maxX
+            let horizontalGap = item.minX - rightmostMaxX
+            let sameColumn = horizontalGap <= lineHeight * 3.0
+            if sameRow && sameColumn {
+                rows[rows.count - 1].append(item)
+                mergedIntoPrevious = true
+            }
+        }
+        if !mergedIntoPrevious {
+            rows.append([item])
+        }
+    }
+
+    // Emit each row. Between text rows in the same paragraph, join with a
+    // space (continuation line). Between paragraphs, insert a blank line.
+    // Barcodes always break the paragraph — a code sitting between two lines
+    // of prose is not a continuation of the prose above it.
+    var lines: [String] = []
+    var currentParagraph: String = ""
+
+    func flushParagraph() {
+        if !currentParagraph.isEmpty {
+            lines.append(currentParagraph)
+            currentParagraph = ""
+        }
+    }
+
+    for (i, row) in rows.enumerated() {
+        let rowText = row.map { $0.payload }.joined(separator: " ")
+        let rowIsText = row.first?.isText ?? false
+
+        if !rowIsText {
+            // Barcode row: flush any pending paragraph, then emit the payload
+            // on its own line.
+            flushParagraph()
+            lines.append(rowText)
+            continue
+        }
+
+        if i == 0 {
+            currentParagraph = rowText
+            continue
+        }
+
+        // Decide if this text row continues the current paragraph or starts
+        // a new one. A large vertical gap (> ~1.6 line-heights of whitespace
+        // between the two rows) means a new paragraph. A large horizontal
+        // indent shift is a weaker signal we deliberately don't act on —
+        // paragraph indents don't consistently exist in screen captures.
+        let prev = rows[i - 1]
+        let prevWasText = prev.first?.isText ?? false
+        if !prevWasText {
+            // Previous row was a barcode; start a fresh paragraph.
+            currentParagraph = rowText
+            continue
+        }
+
+        let prevMidY = prev.map { $0.midY }.min() ?? row[0].midY
+        let prevHeight = prev.map { $0.height }.max() ?? row[0].height
+        let curMidY = row.map { $0.midY }.max() ?? prevMidY
+        let curHeight = row.map { $0.height }.max() ?? prevHeight
+        // Vision's origin is bottom-left, so prev (higher on screen) has a
+        // larger midY than cur. The centre-to-centre distance minus half of
+        // each line height is the whitespace between them.
+        let gap = prevMidY - curMidY - (prevHeight + curHeight) / 2
+        let referenceLineHeight = max(prevHeight, curHeight)
+        let paragraphBreak = gap > referenceLineHeight * 0.6
+
+        if paragraphBreak {
+            flushParagraph()
+            lines.append("") // blank line → \n\n
+            currentParagraph = rowText
+        } else {
+            currentParagraph += " " + rowText
+        }
+    }
+    flushParagraph()
+
+    return lines
+}
+
+func report(_ results: [ScanResult], mode: ScanMode, reflow: ReflowMode, asJSON: Bool) -> Never {
+    let payloads: [String]
+    switch reflow {
+    case .lines:
+        payloads = results.compactMap { $0.payload }
+    case .paragraph:
+        payloads = reflowedPayloads(from: results)
+    }
     let records = results.map { $0.record }
 
     // Only --barcodes treats finding nothing as a failure: it is the one mode that
@@ -702,6 +878,7 @@ do {
     let rectOption = parser.add(option: "--rect", shortName: "-R", kind: String.self, usage: "Capture specific region: x,y,width,height (no interactive selection)")
     let inputFileOption = parser.add(option: "--input", shortName: "-i", kind: String.self, usage: "Use image file instead of screen capture")
     let saveImageOption = parser.add(option: "--save-image", shortName: "-s", kind: String.self, usage: "Save captured screenshot to specified path")
+    let reflowOption = parser.add(option: "--reflow", kind: String.self, usage: "Text layout: lines (default, one line per observation) or paragraph (reflow into paragraphs)")
 
     // --language is only registered on Big Sur and later, where Vision can
     // actually recognise something other than English.
@@ -790,6 +967,16 @@ do {
     // Parse save image option
     saveImagePath = parsedArguments.get(saveImageOption)
 
+    // Parse reflow mode
+    var reflow: ReflowMode = .lines
+    if let raw = parsedArguments.get(reflowOption) {
+        guard let parsed = ReflowMode(rawValue: raw.lowercased()) else {
+            printToStandardError("Error: --reflow must be 'lines' or 'paragraph', not \"\(raw)\".")
+            exit(EXIT_FAILURE)
+        }
+        reflow = parsed
+    }
+
     if let languageOption = languageOption, let language = parsedArguments.get(languageOption), !language.isEmpty {
         recognitionLanguages.insert(language, at: 0)
     }
@@ -863,6 +1050,7 @@ do {
 
     report(scanResults(in: image, mode: mode, symbologies: symbologies, asJSON: outputJSON),
            mode: mode,
+           reflow: reflow,
            asJSON: outputJSON)
 
 } catch {
