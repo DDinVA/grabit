@@ -84,7 +84,9 @@ Current ADRs — see individual files for full text.
 | [0005](0005-per-arch-binaries.md) | Per-arch binaries over universal2 | proposed |
 | [0006](0006-notarization-timing.md) | Defer notarization until traction | proposed |
 | [0007](0007-cocoapods-to-spm.md) | Migrate CocoaPods to Swift Package Manager | proposed |
+| [0008](0008-youtrack-for-durable-tracking.md) | YouTrack for durable governance tracking | proposed |
 
-All seven above are the open questions from
-[`docs/source-refactor-plan.md`](../source-refactor-plan.md),
-lifted into their own reviewable, trackable, supersedable records.
+All eight above are the open questions from
+[`docs/source-refactor-plan.md`](../source-refactor-plan.md) plus the
+governance tracker decision, lifted into their own reviewable,
+trackable, supersedable records.
