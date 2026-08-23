@@ -1,0 +1,60 @@
+name: PR auto-label
+
+# Reads the PR title, extracts the Conventional Commit type and area,
+# applies the matching type/* and area/* labels. Keeps commit vocabulary
+# and label vocabulary in lockstep automatically.
+
+on:
+  pull_request_target:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  label:
+    name: Apply labels from title
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.13.1
+        with:
+          egress-policy: audit
+
+      - name: Parse title and apply labels
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          # Conventional Commit form: type(area): subject
+          # or type: subject (no area; skipped)
+          if [[ ! "$PR_TITLE" =~ ^([a-z]+)\(([a-z0-9-]+)\):[[:space:]] ]]; then
+            echo "PR title does not match 'type(area): subject' — skipping."
+            echo "Title was: $PR_TITLE"
+            exit 0
+          fi
+
+          TYPE="${BASH_REMATCH[1]}"
+          AREA="${BASH_REMATCH[2]}"
+
+          echo "Detected type=$TYPE, area=$AREA"
+
+          TYPE_LABEL="type/$TYPE"
+          AREA_LABEL="area/$AREA"
+
+          # Fail loudly (as advisory, not blocker) if a label the title
+          # implies does not exist. Contributor should add it to
+          # .github/labels.md and the repo, per CONTRIBUTING.md.
+          for label in "$TYPE_LABEL" "$AREA_LABEL"; do
+            if ! gh label list --repo "$REPO" --limit 100 --json name --jq '.[].name' | grep -qx "$label"; then
+              echo "::warning::Label '$label' does not exist. Per CONTRIBUTING.md, add it to .github/labels.md and the repo before merging."
+              continue
+            fi
+            echo "Applying $label to PR #$PR_NUMBER"
+            gh pr edit "$PR_NUMBER" --repo "$REPO" --add-label "$label"
+          done
