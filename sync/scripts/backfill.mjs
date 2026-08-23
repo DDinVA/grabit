@@ -49,38 +49,33 @@ function extractLabels(labels) {
   return out;
 }
 
-// Build YouTrack customFields payload from a GitHub issue.
-function buildCustomFields(issue, youtrackClient, project) {
+// Build YouTrack customFields map from a GitHub issue. Returns the CLIENT-LAYER
+// shape ({ FieldName: value } — single strings or arrays), not the wire shape.
+// The client's buildCustomFieldsWire() translates this to YouTrack's discriminated
+// customFields array on the way out.
+function buildCustomFields(issue) {
   const { types, areas, priorities, statuses } = extractLabels(issue.labels);
-  const fields = [];
+  const out = {};
 
-  // Type (single)
-  if (types.length === 1) {
-    fields.push({ name: 'Type', $type: 'EnumIssueField', value: { name: types[0] } });
-  }
+  // Type (single) — keep the full "type/foo" name to match GRA bundle values.
+  if (types.length === 1) out.Type = `type/${types[0]}`;
 
-  // Area (multi)
-  if (areas.length > 0) {
-    fields.push({
-      name: 'Area',
-      $type: 'MultiEnumIssueField',
-      value: areas.map((a) => ({ name: a })),
-    });
-  }
+  // Area — GRA has Area as single-value enum (see sync/docs/gra-project-state.md).
+  // If GH issue has multiple area/* labels, promote the first to the Area field.
+  // Additional areas are handled downstream by the sync service via issue tags.
+  if (areas.length >= 1) out.Area = `area/${areas[0]}`;
 
   // Priority (single)
-  if (priorities.length === 1) {
-    fields.push({ name: 'Priority', $type: 'EnumIssueField', value: { name: priorities[0] } });
-  }
+  if (priorities.length === 1) out.Priority = `priority/${priorities[0]}`;
 
-  // Status: closed -> "resolved" overrides status/*
-  if (issue.state === 'closed') {
-    fields.push({ name: 'State', $type: 'StateIssueField', value: { name: 'Resolved' } });
+  // Stage (state, single): closed => "resolved" overrides any status/*
+  if (issue.state === "closed") {
+    out.Stage = "resolved";
   } else if (statuses.length === 1) {
-    fields.push({ name: 'State', $type: 'StateIssueField', value: { name: statuses[0] } });
+    out.Stage = `status/${statuses[0]}`;
   }
 
-  return fields;
+  return out;
 }
 
 // Build the body (description) for a YouTrack ticket.
@@ -118,35 +113,25 @@ function normalizeStoredFields(customFields) {
 }
 
 // Determine whether the existing YT ticket has drifted from desired GitHub state.
+// After the client-layer refactor, YT's flattened customFields carry the FULL
+// bundle name (e.g. "type/feat", "area/reflow"), not the bare suffix. So we
+// compare against buildCustomFields() output directly instead of re-deriving.
 function hasDrifted(issue, existingTicket) {
   if (issue.title !== existingTicket.summary) return true;
 
   const desiredDesc = buildDescription(issue);
-  if (desiredDesc !== (existingTicket.description || '')) return true;
+  if (desiredDesc !== (existingTicket.description || "")) return true;
 
-  const desired = extractLabels(issue.labels);
-  const stored = normalizeStoredFields(existingTicket.customFields);
+  const desired = buildCustomFields(issue);
+  const stored = existingTicket.customFields || {};
 
-  // Type
-  const desiredType = desired.types.length === 1 ? desired.types[0] : null;
-  const storedType = stored['Type'] || null;
-  if ((desiredType || null) !== (storedType || null)) return true;
-
-  // Priority
-  const desiredPri = desired.priorities.length === 1 ? desired.priorities[0] : null;
-  const storedPri = stored['Priority'] || null;
-  if ((desiredPri || null) !== (storedPri || null)) return true;
-
-  // Area (multi)
-  const desiredAreas = [...desired.areas].sort();
-  const storedAreas = Array.isArray(stored['Area']) ? [...stored['Area']].sort() : [];
-  if (JSON.stringify(desiredAreas) !== JSON.stringify(storedAreas)) return true;
-
-  // State / Status
-  const desiredState = issue.state === 'closed' ? 'Resolved' : desired.statuses.length === 1 ? desired.statuses[0] : null;
-  const storedState = stored['State'] || stored['Status'] || null;
-  if ((desiredState || null) !== (storedState || null)) return true;
-
+  for (const key of ["Type", "Area", "Priority", "Stage"]) {
+    const d = desired[key] ?? null;
+    // storedValue can be string (single) or array (multi) or null
+    const s = stored[key] ?? null;
+    const storedNorm = Array.isArray(s) ? (s[0] ?? null) : s;
+    if (d !== storedNorm) return true;
+  }
   return false;
 }
 
@@ -157,10 +142,9 @@ async function main() {
   const youtrackProject = env.YOUTRACK_PROJECT || 'GRA';
   const stateDb = env.STATE_DB || '/var/lib/grabit-sync/state.db';
 
-  const gh = new GitHubClient({ token: githubToken, owner: 'DDinVA', repo: 'grabit' });
-  const yt = new YouTrackClient({ url: youtrackUrl, token: youtrackToken, project: youtrackProject });
-  const store = new MappingStore({ path: stateDb });
-  await store.init();
+  const gh = new GitHubClient({ token: githubToken, owner: "DDinVA", repo: "grabit" });
+  const yt = new YouTrackClient({ baseUrl: youtrackUrl, token: youtrackToken, project: youtrackProject });
+  const store = new MappingStore(stateDb);
 
   let issues = [];
   try {
@@ -187,32 +171,34 @@ async function main() {
       continue;
     }
 
-    if (existing && existing.youtrack_id) {
-      // Mapping exists — check drift, PATCH if needed
+    if (existing && existing.youtrack_readable_id) {
+      // Mapping exists — check drift, PATCH if needed. YT's getIssue expects
+      // the readable id ("GRA-5"), which we stored alongside the internal id.
+      const ytReadable = existing.youtrack_readable_id;
       let existingTicket;
       try {
-        existingTicket = await yt.getIssue(existing.youtrack_id);
+        existingTicket = await yt.getIssue(ytReadable);
       } catch (err) {
-        console.error(`[BACKFILL] GH#${n}: could not fetch YT ${existing.youtrack_id}: ${err.message}`);
+        console.error(`[BACKFILL] GH#${n}: could not fetch YT ${ytReadable}: ${err.message}`);
         errors.push({ n, error: `fetch YT: ${err.message}` });
         continue;
       }
 
       if (hasDrifted(issue, existingTicket)) {
         try {
-          const customFields = buildCustomFields(issue, yt, youtrackProject);
-          await yt.updateIssue(existing.youtrack_id, {
-            summary: issue.title || '',
+          const customFields = buildCustomFields(issue);
+          await yt.updateIssue(ytReadable, {
+            summary: issue.title || "",
             description: buildDescription(issue),
             customFields,
           });
-          console.log(`[BACKFILL] GH#${n} -> ${existing.youtrack_id} (patched) (${summary60})`);
+          console.log(`[BACKFILL] GH#${n} -> ${ytReadable} (patched) (${summary60})`);
         } catch (err) {
           console.error(`[BACKFILL] GH#${n}: patch failed: ${err.message}`);
           errors.push({ n, error: `patch: ${err.message}` });
         }
       } else {
-        console.log(`[BACKFILL] GH#${n} -> ${existing.youtrack_id} (skip) (${summary60})`);
+        console.log(`[BACKFILL] GH#${n} -> ${ytReadable} (skip) (${summary60})`);
       }
       await sleep(SLEEP_MS);
       continue;
@@ -228,9 +214,14 @@ async function main() {
         customFields,
       });
 
-      const ytId = created.id || created.number;
-      await store.set({ github_number: n, youtrack_id: ytId });
-      console.log(`[BACKFILL] GH#${n} -> ${ytId} (created) (${summary60})`);
+      const ytId = created.id;
+      const ytReadable = created.idReadable;
+      store.put({
+        githubIssueNumber: n,
+        youtrackId: ytId,
+        youtrackReadableId: ytReadable,
+      });
+      console.log(`[BACKFILL] GH#${n} -> ${ytReadable} (created) (${summary60})`);
     } catch (err) {
       console.error(`[BACKFILL] GH#${n}: create failed: ${err.message}`);
       errors.push({ n, error: `create: ${err.message}` });
