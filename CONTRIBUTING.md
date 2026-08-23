@@ -47,14 +47,35 @@ signing.
   `docs/short-name`, `security/short-name`.
 - One logical change per PR. Refactors go in their own PR, ahead of the
   feature that needs them.
-- Commit messages use Conventional Commits:
+- Commit messages and PR titles follow Conventional Commits **with an
+  area label** and stay generic in their subject line:
 
   ```
-  feat: add --reflow markdown mode
-  fix: paragraph break threshold on tiny captures
-  docs: clarify Screen Recording permission section
-  chore(ci): pin actions to full commit SHAs
+  feat(reflow): markdown mode
+  fix(reflow): threshold on tiny captures
+  docs(readme): install section updates
+  docs(refactor-plan): revisions
+  chore(ci): pin action versions
+  chore(security): governance scaffolding
   ```
+
+  Rules for the subject line:
+
+  1. **Always include an area** in parentheses after the type. It scopes
+     what changed. Areas that already exist: `reflow`, `readme`,
+     `refactor-plan`, `security`, `ci`, `install`, `rebrand`,
+     `governance`, `vision`. Add new ones as the project grows.
+  2. **Keep the subject generic.** Describe the surface, not the
+     editorial intent or what was removed. Commit messages are a
+     permanent public record — never encode information there that
+     you would not want a future user or contributor to find.
+
+  Good: `docs(refactor-plan): initial draft`,
+  `docs(refactor-plan): revisions`, `docs(readme): install updates`.
+
+  Not good: subjects that reveal internal review dynamics, name
+  contributors in the imperative, or describe what a prior version got
+  wrong.
 
 - Sign your commits (`git commit -S`) if you can. Not required for
   merging, but strongly encouraged — it makes the audit trail meaningful.
